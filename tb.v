@@ -88,27 +88,16 @@ module tb();
 		#15
 		data = 16'hz;
 		
-		// Start loading data
-		
+	    // Start loading data
 		#30
 		de = 1'b1;
-		
-		// delay 24 cycles (6 ST cycles) - wakestate 1
-		// delay 12 cycles (3 ST cycles) - wakestate 2
-		// delay 20 cycles (5 ST cycles) - wakestate 3
-		// delay 16 cycles (4 ST cycles) - wakestate 4
-		repeat (6) begin
-		    #120; // 4 cycles
-		end
 
-	    data = 16'haaaa;
-	    
-	    // first load
-	    load = 1'b0;
-	    #120
-	    load = 1'b1;
-	    
-		repeat (3) begin // 3 loads, making up the first complete shifter cycle
+	    // first load - we're going to load three to prime the shifter.
+	    // We need to do this because the ST turning on and raising the /LOAD signal
+	    // gets counted as the first of 4 loads. We'll load 3 more to clear the
+	    // counter. This would naturally happen after the first scanline anyway.
+	    data = 16'h0;
+		repeat (3) begin // 2 loads, 
 		    #360
 		    load = 1'b0;
 		    #120
@@ -120,9 +109,16 @@ module tb();
         #1440
         #1440        
         de = 1;
-		    
         
-        #360 // 1 load
+		// delay 24 cycles (6 ST cycles) - wakestate 1
+		// delay 12 cycles (3 ST cycles) - wakestate 2
+		// delay 20 cycles (5 ST cycles) - wakestate 3
+		// delay 16 cycles (4 ST cycles) - wakestate 4
+		repeat (6) begin
+		    #120; // 4 cycles
+		end		    
+        
+        // First load after getting back in sync
         data = 16'haaaa;
 	    load = 1'b0;
 	    #120
