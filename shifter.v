@@ -16,7 +16,12 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	// STE-style palettes with LSB in position 3
 	output [3:0] r;
 	output [3:0] g; 
-	output [3:0] b; 
+	output [3:0] b;
+
+	wire [3:0] mono_intensity;
+	reg [3:0] r_intensity;
+	reg [3:0] g_intensity;
+	reg [3:0] b_intensity;
 
 	reg [15:0] shift_rr[3:0];
 	reg [15:0] shift_ir[3:0];
@@ -37,7 +42,7 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	wire [1:0] palette_med;
 	wire mono;
 	
-	wire [3:0] palette_index;
+	reg [3:0] palette_index;
 	wire reset;
 	
 	reg [1:0] de_state;
@@ -53,25 +58,18 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	reg shifter_running;
 	reg first_load_seen;
 	reg [2:0] loads_seen;
-	
+
 	wire pixel_clock;
 
 	assign reset = (!load) && (!cs);
 	assign mono = shift_rr[0][15];
-
-	wire [3:0] mono_intensity;
 	assign mono_intensity = palette[0][0] == 0 ?
 		(mono ? 4'b1111 : 4'b0) : (mono ? 4'b0 : 4'b1111);
 	
-	assign r = resolution == 2 ? mono_intensity : 
-		    {palette[palette_index][10:8], palette[palette_index][11]};
-	assign g = resolution == 2 ? mono_intensity :
-		    {palette[palette_index][6:4], palette[palette_index][7]};
-	assign b = resolution == 2 ? mono_intensity :
-		    {palette[palette_index][2:0], palette[palette_index][3]};
-	
-	assign palette_index = resolution == 0 ? palette_low : {2'b00, palette_med};
-	
+	assign r = r_intensity;
+	assign g = g_intensity;
+	assign b = b_intensity;
+
 	assign palette_low = {
 		shift_rr[3][15], 
 		shift_rr[2][15],
@@ -177,12 +175,6 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 		if (pixel_counter_enable) begin
 			pixel_count <= pixel_count + 4'b1;
 		end else begin
-			// This is 4 in the real ST, but in this verilog model, with 4 some instances
-			// of the "every other 16 pixels background" error can be seen in some wakestate(s) due to
-			// the pixel counter reaching 15 one cycle earlier than expected.
-			// With 3, spectrum 512 displays black dots that are caused by the palette updates
-			// not arriving in time.
-			// With this setting at 2, everything seems to work.
 			pixel_count <= 4'd4; 
 		end
 	end
@@ -242,4 +234,16 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 		end
 	end
 	
+	// Generate RGB output
+	always @(posedge pixel_clock) begin
+		palette_index <= resolution == 0 ? palette_low : {2'b00, palette_med};
+
+		r_intensity <= resolution == 2 ? mono_intensity : 
+		    {palette[palette_index][10:8], palette[palette_index][11]};
+		g_intensity <= resolution == 2 ? mono_intensity :
+		    {palette[palette_index][6:4], palette[palette_index][7]};
+		b_intensity <= resolution == 2 ? mono_intensity :
+		    {palette[palette_index][2:0], palette[palette_index][3]};
+	end	
+
 endmodule
