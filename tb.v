@@ -75,10 +75,9 @@ module tb();
 		#15
 		data = 16'hz;
 
-		// Set resolution medium
-		
+		// Set resolution
 		#30
-		data = 16'd0;
+		data = 16'd3;
 		addr = 16'd16;
 		cs = 1'b0;
 		rw = 1'b0;
@@ -119,10 +118,10 @@ module tb();
 		end		    
         
         // First load after getting back in sync
-        data = 16'haaaa;
-	    load = 1'b0;
-	    #120
-	    load = 1'b1;
+	data = 16'h1b1b;
+	load = 1'b0;
+	#120
+	load = 1'b1;
 	    
 	    // Set palette colour 0 to grey
 	    /*
@@ -137,24 +136,70 @@ module tb();
 		rw = 1'b1;
 		*/
 		
-		#240 // in place of palette write
+	#240 // in place of palette write
         #120 // 1 load
-        data = 16'haaaa;
-	    load = 1'b0;
-	    #120
-	    load = 1'b1;
-	    
-		
-		repeat (10) begin // 2 loads
-		    #360
-		    load = 1'b0;
-		    #120
-		    load = 1'b1;
-		end		
-		
-		#1000;
-		$display($time, "<< Simulation Complete >>");
-		$finish;
+        data = 16'h0055;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+	#240
+        #120 // 1 load
+        data = 16'h1b1b;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+	#240
+	#120 // 1 load
+        data = 16'h0055;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+
+	repeat (10) begin
+		#360
+                data = 16'h1b1b;
+		load = 1'b0;
+		#120
+		load = 1'b1;
+
+		#360
+                data = 16'h0055;
+		load = 1'b0;
+		#120
+		load = 1'b1;
+	end           
+
+	#1000;
+	$display($time, "<< Simulation Complete >>");
+	$finish;
 	end		
 	
 endmodule
+
+/*
+00  00 00 00 00
+11  00 01 00 01
+22  00 10 00 10
+33  00 11 00 11
+44  01 00 01 00
+55  01 01 01 01
+66  01 10 01 10
+77  01 11 01 11
+
+    00 01 10 11  00 01 1011 0x1B1B
+    00 00 00 00  01 01 0101 0x0055
+    00 01 10 11  00 01 1011 0x1B1B
+    00 00 00 00  01 01 0101 0x0055
+
+
+1b00   00 01
+0500   01 01
+1b00   00 01
+0500   01 01
+
+
+
+*/

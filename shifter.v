@@ -23,7 +23,7 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	reg [15:0] shift_rr[3:0];
 	reg [15:0] shift_ir[3:0];
 	reg [1:0] resolution;
-	reg [11:0] palette [15:0];
+	reg [11:0] palette [255:0];
 	wire [63:0] shift_ir_test;
 	
 	// For use of gtkwave
@@ -35,11 +35,12 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 		shift_rr[0], shift_rr[1], shift_rr[2], shift_rr[3]
 	};
 	
+	wire [7:0] palette_256;
 	wire [3:0] palette_low;
 	wire [1:0] palette_med;
 	wire mono;
 	
-	reg [3:0] palette_index;
+	reg [7:0] palette_index;
 	wire reset;
 	
 	reg [1:0] de_state;
@@ -80,30 +81,44 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 		shift_rr[1][15], 
 		shift_rr[0][15]
 	};
+
+	assign palette_256 = {
+		shift_rr[3][15:14], 
+		shift_rr[2][15:14],
+		shift_rr[1][15:14], 
+		shift_rr[0][15:14]
+	};
 	
 	// data bus
 	assign oe = (!cs) && rw;
 	assign data_out = addr[4] == 1 ? {6'b0, resolution, 8'b0} : {4'b0, palette[addr[3:0]]};
 
-	reg [1:0] speed_divider;
+	reg [2:0] speed_divider;
 	
-	assign pixel_clock = resolution == 2 ? CLOCK_32 :
-		(resolution == 1 ? speed_divider[0] : speed_divider[1]);
+	assign pixel_clock = resolution == 2 ? 
+		CLOCK_32 : // high-res, 32MHz
+		(resolution == 1 ? 
+			speed_divider[0] : // medium-res, 16MHz
+			(resolution == 0 ? 
+				speed_divider[1] : // low-res, 8MHz
+				speed_divider[1]   // 256-colour mode, 4MHz
+			)
+		);
 	
 	// Generate 16MHz and 8MHz pixel clocks from 32MHz clock
 	always @(posedge CLOCK_32) begin
 		if (reset) begin
 			speed_divider <= 0;
 		end else begin
-			speed_divider <= speed_divider + 2'b1;
+			speed_divider <= speed_divider + 1'b1;
 		end
 	end
 	
 	initial begin
-	    shift_rr[0] = 0;
-	    shift_rr[1] = 0;
-	    shift_rr[2] = 0;
-	    shift_rr[3] = 0;
+		shift_rr[0] = 0;
+		shift_rr[1] = 0;
+		shift_rr[2] = 0;
+		shift_rr[3] = 0;
 		load_detect = 0;
 		load_detect_delay = 0;
 		load_state = 2'b11; // because it's active low
@@ -112,7 +127,7 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 		resolution = 0;
 		pixel_count = 0;
 		pixel_counter_enable = 0;
-		speed_divider = 2'b0;
+		speed_divider = 3'b0;
 		reload = 0;
 	end
 	
@@ -132,8 +147,12 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	end
 	
 	// shifter reload
+	wire pixel_count_top;
+	assign pixel_count_top = resolution == 3 ? 
+		(pixel_count[2:0] == 3'b111) : (pixel_count == 4'b1111);
+
 	always @(posedge pixel_clock) begin
-	    if (load_count[3] && pixel_count == 4'b1111) begin
+	    if (load_count[3] && pixel_count_top) begin
 			reload = 1;
 		end else begin
 			reload = 0;
@@ -142,12 +161,12 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	
 	// reload_delay
 	always @(posedge pixel_clock or posedge reset) begin
-	    if (reset) begin
-	        reload_delay = 0;
-	    end else begin
-	        reload_delay = reload;
-	    end
-    end
+		if (reset) begin
+			reload_delay = 0;
+		end else begin
+			reload_delay = reload;
+		end
+	end
 	
 	// load detect
 	wire n_de;
@@ -203,25 +222,37 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 				shift_rr[1] <= {shift_rr[1][14:0], shift_rr[3][15]};
 				shift_rr[2] <= {shift_rr[2][14:0], 1'b0};
 				shift_rr[3] <= {shift_rr[3][14:0], 1'b0};		
-			end else begin
+			end else if (resolution == 2) begin
 				// Monochrome, every clock
 				shift_rr[0] <= {shift_rr[0][14:0], shift_rr[1][15]};
 				shift_rr[1] <= {shift_rr[1][14:0], shift_rr[2][15]};
 				shift_rr[2] <= {shift_rr[2][14:0], shift_rr[3][15]};
 				shift_rr[3] <= {shift_rr[3][14:0], 1'b0};
+			end else if (resolution == 3 && speed_divider[2]) begin
+				// 160x200x256, every 8th clock
+				shift_rr[0] <= {shift_rr[0][13:0], 2'b0};
+				shift_rr[1] <= {shift_rr[1][13:0], 2'b0};
+				shift_rr[2] <= {shift_rr[2][13:0], 2'b0};
+				shift_rr[3] <= {shift_rr[3][13:0], 2'b0};
 			end
 		end
 	end
 	
 	// register writes
+	reg [3:0] palette_bank;
+	initial begin
+		palette_bank = 0;
+	end
 	always @(posedge CLOCK_32) begin
 		if (reset) begin
 			resolution <= 2'b0;
 		end else if (!cs && !rw) begin
 			if (addr == 16) begin
 				resolution <= data[1:0];
+			end else if (addr == 17) begin
+				palette_bank <= data[3:0];
 			end else begin
-				palette[addr[3:0]] <= data[11:0];
+				palette[{palette_bank, addr[3:0]}] <= data[11:0];
 			end
 		end
 	end
@@ -239,7 +270,12 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	
 	// Assign palette index
 	always @(posedge pixel_clock) begin
-		palette_index <= resolution == 0 ? palette_low : {2'b00, palette_med};
+		palette_index <= resolution == 0 ? 
+			{4'b0, palette_low} : 
+			(resolution == 1 ? 
+				{6'b0, palette_med} : 
+				palette_256
+			);
 	end	
 
 endmodule
