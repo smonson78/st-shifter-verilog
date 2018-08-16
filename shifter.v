@@ -22,8 +22,8 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 
 	reg [15:0] shift_rr[3:0];
 	reg [15:0] shift_ir[3:0];
-	reg [1:0] resolution;
-	reg [11:0] palette [255:0];
+	reg [7:0] resolution; // FIXME unnecessarily big
+	//reg [11:0] palette [255:0];
 	wire [63:0] shift_ir_test;
 	
 	// For use of gtkwave
@@ -59,16 +59,25 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 
 	wire pixel_clock;
 
+	wire [7:0] pal_addr;
+	wire pal_we;
+	wire [15:0] pal_q;
+	wire [15:0] pal_read;
+	pal_ram palette(pal_addr, palette_index, CLOCK_32, data, {16'b0}, pal_we, 1'b0, pal_read, pal_q);
+	
+	assign pal_addr = {palette_bank, addr[3:0]};
+	assign pal_we = (!cs) && (!rw) && (addr[4] == 0);
+
 	assign reset = (!load) && (!cs);
 	assign mono = shift_rr[0][15];
-	assign mono_intensity = palette[0][0] == 0 ?
+	assign mono_intensity = pal_q == 0 ?
 		(mono ? 4'b1111 : 4'b0) : (mono ? 4'b0 : 4'b1111);
 	assign r = resolution == 2 ? mono_intensity : 
-		    {palette[palette_index][10:8], palette[palette_index][11]};
+		    {pal_q[10:8], pal_q[11]};
 	assign g = resolution == 2 ? mono_intensity :
-		    {palette[palette_index][6:4], palette[palette_index][7]};
+		    {pal_q[6:4], pal_q[7]};
 	assign b = resolution == 2 ? mono_intensity :
-		    {palette[palette_index][2:0], palette[palette_index][3]};
+		    {pal_q[2:0], pal_q[3]};
 
 	assign palette_low = {
 		shift_rr[3][15], 
@@ -91,7 +100,7 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	
 	// data bus
 	assign oe = (!cs) && rw;
-	assign data_out = addr[4] == 1 ? {6'b0, resolution, 8'b0} : {4'b0, palette[addr[3:0]]};
+	assign data_out = addr[4] == 1 ? {6'b0, resolution, 8'b0} : pal_read;
 
 	reg [2:0] speed_divider;
 	
@@ -148,7 +157,7 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	
 	// shifter reload
 	wire pixel_count_top;
-	assign pixel_count_top = resolution == 3 ? 
+	assign pixel_count_top = resolution == 4 ? 
 		(pixel_count[2:0] == 3'b111) : (pixel_count == 4'b1111);
 
 	always @(posedge pixel_clock) begin
@@ -228,7 +237,7 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 				shift_rr[1] <= {shift_rr[1][14:0], shift_rr[2][15]};
 				shift_rr[2] <= {shift_rr[2][14:0], shift_rr[3][15]};
 				shift_rr[3] <= {shift_rr[3][14:0], 1'b0};
-			end else if (resolution == 3 && speed_divider[2]) begin
+			end else if (resolution == 4 && speed_divider[2]) begin
 				// 160x200x256, every 8th clock
 				shift_rr[0] <= {shift_rr[0][13:0], 2'b0};
 				shift_rr[1] <= {shift_rr[1][13:0], 2'b0};
@@ -248,11 +257,12 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 			resolution <= 2'b0;
 		end else if (!cs && !rw) begin
 			if (addr == 16) begin
-				resolution <= data[1:0];
+				resolution <= data[7:0];
 			end else if (addr == 17) begin
 				palette_bank <= data[3:0];
-			end else begin
-				palette[{palette_bank, addr[3:0]}] <= data[11:0];
+			//end else begin
+			//	palette[{palette_bank, addr[3:0]}] <= data[11:0];
+			// palette writes can happen directly in the ram module
 			end
 		end
 	end
@@ -270,12 +280,15 @@ module shifter(CLOCK_32, de, cs, load, data, data_out, rw, addr, oe, r, g, b);
 	
 	// Assign palette index
 	always @(posedge pixel_clock) begin
-		palette_index <= resolution == 0 ? 
-			{4'b0, palette_low} : 
-			(resolution == 1 ? 
-				{6'b0, palette_med} : 
-				palette_256
-			);
+		if (resolution == 0) begin
+			palette_index <= {4'b0, palette_low};
+		end else if (resolution == 1) begin
+			palette_index <= {6'b0, palette_med};
+		end else if (resolution == 2) begin
+			palette_index <= 0;
+		end else if (resolution == 4 && speed_divider[2]) begin
+			palette_index <= palette_256;
+		end 
 	end	
 
 endmodule

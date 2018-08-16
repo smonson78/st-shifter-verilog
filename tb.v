@@ -15,8 +15,9 @@ module tb();
 	shifter shifter_model(CLOCK_32, de, cs, load, data, shifter_data_out, rw, addr, oe, 
 		shifter_r, shifter_g, shifter_b);
 
-	always
+	always begin
 		#15 CLOCK_32 = ~CLOCK_32;	
+	end
 				
 	initial
 	begin
@@ -31,7 +32,10 @@ module tb();
 		load = 1;
 		addr = 0;
 		#90
-		/*
+
+		#30 // test clock skew
+
+		
         // reset! - but don't because it screws up the first shifts
         #30
         de = 0;
@@ -40,7 +44,7 @@ module tb();
         #30
         cs = 1;
         load = 1;
-        */
+        
 		// Set palette colour 0 to black
 		#30
 		data = 16'h0000;
@@ -77,7 +81,7 @@ module tb();
 
 		// Set resolution
 		#30
-		data = 16'd3;
+		data = 16'd4;
 		addr = 16'd16;
 		cs = 1'b0;
 		rw = 1'b0;
@@ -118,41 +122,56 @@ module tb();
 		end		    
         
         // First load after getting back in sync
-	data = 16'h1b1b;
+	data = 16'h6c6c;
 	load = 1'b0;
 	#120
 	load = 1'b1;
-	    
-	    // Set palette colour 0 to grey
-	    /*
-	    #120
-		data = 16'h0444;
-		addr = 5'h0;
-        #60
-		cs = 1'b0;
-		rw = 1'b0;
-		#60
-		cs = 1'b1;
-		rw = 1'b1;
-		*/
-		
+	
 	#240 // in place of palette write
         #120 // 1 load
-        data = 16'h0055;
+        data = 16'h0156;
 	load = 1'b0;
 	#120
 	load = 1'b1;
 
 	#240
         #120 // 1 load
-        data = 16'h1b1b;
+        data = 16'h6c6c;
 	load = 1'b0;
 	#120
 	load = 1'b1;
 
 	#240
 	#120 // 1 load
-        data = 16'h0055;
+        data = 16'h0156;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+	#240
+	#120 // 1 load
+        data = 16'h6c6d;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+	#240
+	#120 // 1 load
+        data = 16'habfc;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+	#240
+	#120 // 1 load
+        data = 16'h6c6c;
+	load = 1'b0;
+	#120
+	load = 1'b1;
+
+	#240
+	#120 // 1 load
+        data = 16'habfc;
 	load = 1'b0;
 	#120
 	load = 1'b1;
@@ -160,7 +179,7 @@ module tb();
 
 	repeat (10) begin
 		#360
-                data = 16'h1b1b;
+                data = 16'h6c6d;
 		load = 1'b0;
 		#120
 		load = 1'b1;
@@ -180,7 +199,6 @@ module tb();
 endmodule
 
 /*
-00  00 00 00 00
 11  00 01 00 01
 22  00 10 00 10
 33  00 11 00 11
@@ -188,18 +206,52 @@ endmodule
 55  01 01 01 01
 66  01 10 01 10
 77  01 11 01 11
+88  10 00 10 00
 
-    00 01 10 11  00 01 1011 0x1B1B
-    00 00 00 00  01 01 0101 0x0055
-    00 01 10 11  00 01 1011 0x1B1B
-    00 00 00 00  01 01 0101 0x0055
+99  10 01 10 01
+AA  10 10 10 10
+BB  10 11 10 11
+CC  11 00 11 00
+DD  11 01 11 01
+EE  11 10 11 10
+FF  11 11 11 11
+01  00 00 00 01
+
+    11 22 33 44  55 66 77 88
+    01 10 11 00  01 10 11 00  0x6c6c
+    00 00 00 01  01 01 01 10  0x0156
+    01 10 11 00  01 10 11 00  0x6c6c
+    00 00 00 01  01 01 01 10  0x0156
+
+    99 aa bb cc  dd ee ff 01
+    01 10 11 00  01 10 11 01  0x6c6d
+    10 10 10 11  11 11 11 00  0xabfc
+    01 10 11 00  01 10 11 00  0x6c6c
+    10 10 10 11  11 11 11 00  0xabfc
 
 
-1b00   00 01
-0500   01 01
-1b00   00 01
-0500   01 01
+
+0 6c6c 0110 
+1 0156 0001
+2 6c6c 0110
+3 0156 0001 00 01 00 01
 
 
+5c 20 5c 20 51 4e 4e 67
+0101 1100  0010 0000  0101 1100  0000 0010 
+0101 0001  0100 1110  0100 1110  0110 0111
+
+006b  0000 0000 0110 1011
+cc3d  1100 1100 0011 1101
+6642  0110 0110 0100 0010
+4455  0100 0100 0101 0101
+
+0101 1100 ... 0110 0111
 
 */
+
+
+
+
+
+
