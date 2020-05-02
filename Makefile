@@ -7,10 +7,10 @@ clean:
 shifter: shifter.v
 	iverilog -o $@ $^
 
-tb: tb.v shifter.v pal_ram.v
+tb: tb.v shifter.v
 	iverilog -o $@ $^
 
-tb16: tb16.v shifter.v pal_ram.v
+tb16: tb16.v shifter.v
 	iverilog -o $@ $^
 
 %: %.v
